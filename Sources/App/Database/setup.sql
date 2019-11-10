@@ -69,7 +69,7 @@ create table sentences (
 create table word_sentences (
     id           serial primary key,
     word_id      integer references words(id),
-    sentences_id integer references sentences(id),
+    sentence_id integer references sentences(id),
     index        integer
 );
 
