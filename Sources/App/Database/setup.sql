@@ -66,7 +66,7 @@ create table sentences (
     chapter_id integer references chapters(id)
 );
 
-create table word_sentences (
+create table words_sentences (
     id           serial primary key,
     word_id      integer references words(id),
     sentence_id integer references sentences(id),
@@ -78,7 +78,7 @@ create table authors (
     name varchar (255)
 );
 
-create table books_and_authors (
+create table books_authors (
     id        serial primary key,
     book_id   integer references books(id),
     author_id integer references authors(id)

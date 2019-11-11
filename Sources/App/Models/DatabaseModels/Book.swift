@@ -13,3 +13,9 @@ struct Book: PostgreSQLModel {
     var number_of_pages: String
     var year: String
 }
+
+extension Book {
+    var author: Siblings<Book, Author, BookAuthor> {
+        return siblings()
+    }
+}
