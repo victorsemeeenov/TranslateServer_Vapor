@@ -1,11 +1,5 @@
-//
-//  File.swift
-//  
-//
-//  Created by Victor on 10.11.2019.
-//
-
-drop table if exists sessions CASCADE;
+drop table if exists access_tokens CASCADE;
+drop table if exists refresh_tokens CASCADE;
 drop table if exists users CASCADE;
 drop table if exists words CASCADE;
 drop table if exists translations CASCADE;
@@ -18,20 +12,27 @@ drop table if exists books_and_authors CASCADE;
 
 create table users (
     id         serial primary key,
-    uuid       varchar(64) not null unique,
     name       varchar(255),
     email      varchar(255) not null unique,
     password   varchar(255) not null,
     created_at timestamp not null
 );
 
-create table sessions (
+create table access_tokens (
     id         serial primary key,
-    uuid       varchar(64) not null unique,
-    email      varchar(255),
+    value     varchar(64) not null unique,
     user_id    integer references users(id),
-    created_at timestamp not null
+    created_at timestamp not null,
+    expired_in timestamp not null
 );
+
+create table refresh_tokens (
+    id         serial primary key,
+    value     varchar(64) not null unique,
+    user_id    integer references users(id),
+    created_at timestamp not null,
+    expired_in timestamp not null
+)
 
 create table words (
     id    serial primary key,
