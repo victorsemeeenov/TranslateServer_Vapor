@@ -1,5 +1,6 @@
 import FluentPostgreSQL
-
+import Authentication
+import SimpleFileLogger
 import Vapor
 
 /// Called before your application initializes.
@@ -16,7 +17,11 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     let printLogger = PrintLogger()
     services.register(printLogger)
     
+    let fileLogger = SimpleFileLogger()
+    services.register(fileLogger)
+
     // Auth
+    try services.register(AuthenticationProvider())
     
     // Register middleware
     var middlewares = MiddlewareConfig() // Create _empty_ middleware config
