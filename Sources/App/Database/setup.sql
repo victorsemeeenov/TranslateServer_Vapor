@@ -20,7 +20,7 @@ create table users (
 
 create table access_tokens (
     id         serial primary key,
-    value     varchar(64) not null unique,
+    value      varchar(64) not null unique,
     user_id    integer references users(id),
     created_at timestamp not null,
     expired_in timestamp not null
@@ -28,7 +28,7 @@ create table access_tokens (
 
 create table refresh_tokens (
     id         serial primary key,
-    value     varchar(64) not null unique,
+    value      varchar(64) not null unique,
     user_id    integer references users(id),
     created_at timestamp not null,
     expired_in timestamp not null
