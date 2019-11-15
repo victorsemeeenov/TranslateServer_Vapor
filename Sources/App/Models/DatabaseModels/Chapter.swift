@@ -14,9 +14,7 @@ struct Chapter: PostgreSQLModel {
     var index: Int
     var index_value: String
     var book_id: Int
-}
-
-extension Chapter {
+    
     var book: Parent<Chapter, Book> {
         return parent(\.book_id)
     }

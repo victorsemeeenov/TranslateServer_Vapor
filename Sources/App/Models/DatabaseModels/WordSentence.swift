@@ -7,20 +7,18 @@
 
 import FluentPostgreSQL
 
-struct  WordSentence {
-    var id: Int?
-    var word_id: Int
-    var sentence_id: Int
-    var index: Int
-}
-
-extension WordSentence: Pivot {
+struct  WordSentence: Pivot {
     typealias Database = PostgreSQLDatabase
     typealias ID = Int
        
     typealias Left = Word
     typealias Right = Sentence
-       
+    
+    var id: Int?
+    var word_id: Int
+    var sentence_id: Int
+    var index: Int
+    
     static var idKey: WritableKeyPath<WordSentence, Int?> {
         return \.id
     }
@@ -33,3 +31,4 @@ extension WordSentence: Pivot {
         return \.sentence_id
     }
 }
+

@@ -12,164 +12,167 @@ import JWT
 
 class AuthService: Service {
     //MARK: -Auth
-    func registerUser<TokenTransaction: TransactionOperation>(use userRepository: AbstractRepository<User>,
-                      tokenTransaction: TokenTransaction
-                      user: RegisterRequest) throws -> EventLoopFuture<(AccessToken, RefreshToken)> {
+    func registerUser(conn: DatabaseConnectable,
+                      user: RegisterUserRequest) -> EventLoopFuture<(RefreshToken, AccessToken)> {
         do {
-            let digest = try SHA1.hash(user.password)
-            let newUser = User(name: user.username, email: user.email, passwordHash: digest.hexEncodedString())
-            if let _ = try userRepository.first(\.name, newUser.name).wait() {
+            let password = try SHA1.hash(user.password)
+            let newUser = User(name: user.username, email: user.email, passwordHash: password.hexEncodedString())
+            if let _ = try User.query(on: conn).filter(\.name == newUser.name).first().wait() {
                 throw AuthError.userExistWithName(name: newUser.name)
             }
-            if let _ = try userRepository.first(\.email, newUser.email).wait() {
+            if let _ = try User.query(on: conn).filter(\.email == newUser.email).first().wait() {
                 throw AuthError.userExistWithEmail(email: newUser.email)
             }
-            let user = try userRepository.create(newUser).wait()
-            
+            return conn.transact { (conn) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                newUser.create(on: conn)
+                    .then { (user) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                        return self.createNewTokens(on: conn,
+                                                    user: user)
+                }
+            }
         } catch {
-            throw error
+            return .fail(eventLoop: conn.eventLoop, error: error)
         }
     }
     
-    func authorizeUser(use userRepository: AbstractRepository<User>,
-                       accessTokenRepository: AbstractRepository<AccessToken>,
-                       accessToken: String) throws -> EventLoopFuture<User> {
+    func loginUser(conn: DatabaseConnectable,
+                   user: LoginUserRequest) -> EventLoopFuture<(RefreshToken, AccessToken)> {
         do {
-            return try checkToken(accessToken: accessToken,
-                                  accessTokenRepository: accessTokenRepository)
-                .flatMap({ (token) -> EventLoopFuture<User?> in
-                    return try userRepository.find(token.user_id)
-                })
-                .map({ (user) -> (User) in
-                    if let validUser = user {
-                        return validUser
-                    } else {
+            let password = try SHA1.hash(user.password)
+            let user = try User.query(on: conn).filter(\.name == user.username)
+                .filter(\.passwordHash == password.hexEncodedString())
+                .first()
+                .map({(user) -> User in
+                    guard let validUser = user else {
                         throw AuthError.userNotFound
                     }
+                    return validUser
                 })
+                .wait()
+            
+            return try user.refreshTokens
+            .query(on: conn)
+            .first()
+            .flatMap({ (refreshToken) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                guard let validToken = refreshToken else {
+                    throw AuthError.refreshTokenNotFinded(token: nil)
+                }
+                return try self.refreshToken(userId: user.id!,
+                                         conn: conn,
+                                         refreshToken: validToken.value)
+            })
         } catch {
-            throw error
-        }
-    }
-    //MARK: -Token
-    func checkToken(accessToken: String,
-                    accessTokenRepository: AbstractRepository<AccessToken>) throws -> EventLoopFuture<AccessToken> {
-        do {
-            return try accessTokenRepository.first(\.value, accessToken)
-                .map({ (token) -> AccessToken in
-                    guard let validToken = token else {
-                        throw AuthError.accessTokenNotFinded(token: accessToken)
-                    }
-                    if validToken.expired_in < Date() {
-                        return validToken
-                    } else {
-                        throw AuthError.accessTokenExpiredIn(token: validToken.value, expiredDate: validToken.expired_in)
-                    }
-                })
-        } catch {
-            throw error
+            return .fail(eventLoop: conn.eventLoop, error: error)
         }
     }
     
-    func refreshToken<RefreshTokenTransactionOperation: TransactionOperation, AccessTokenTransactionOperation: TransactionOperation, UserRepository: TransactionOperation> (refreshToken: String,
-                               transaction: Transaction,
-                               refreshTokenRepository: AbstractRepository<RefreshToken>,
-                               accessTokenRepository: AbstractRepository<AccessToken>,
-                               userRepository: AbstractRepository<User>) throws -> EventLoopFuture<(RefreshToken, AccessToken)> where RefreshTokenTransactionOperation.T == RefreshToken, AccessTokenTransactionOperation.T == AccessToken, UserRepository.T == User
-    {
-        do {
-            return transaction.transact { (transact) -> EventLoopFuture<(RefreshToken, AccessToken)> in
-                if let user = try self.deleteOldTokenTransaction(refreshToken: refreshToken,
-                                                   transactionProcess: transact,
-                                                   refreshTokenRepository: refreshTokenRepository,
-                                                   accessTokenRepository: accessTokenRepository, userRepository: userRepository)
-                    .wait() {
-                    return try self.createNewTokens(user: user,
-                    transactionProcess: transact,
-                    refreshTokenRepository:refreshTokenRepository, accessTokenRepository: accessTokenRepository)
+    func authorizeUser(conn: DatabaseConnectable,
+                       accessToken: String) -> EventLoopFuture<User> {
+        return checkToken(conn: conn, accessToken: accessToken)
+            .flatMap { (token) -> EventLoopFuture<User?> in
+                return User.find(token.user_id, on: conn
+                )
+            }
+            .map { (user) -> (User) in
+                if let validUser = user {
+                    return validUser
                 } else {
                     throw AuthError.userNotFound
                 }
             }
-        } catch {
-            throw error
-        }
     }
-    
-    private func deleteOldTokenTransaction<RefreshTokenTransactionOperation: TransactionOperation, AccessTokenTransactionOperation: TransactionOperation, UserRepository: TransactionOperation> (refreshToken: String,
-                                                                transactionProcess: TransactionProcess,
-                                                                refreshTokenRepository: RefreshTokenTransactionOperation,
-                                                                accessTokenRepository: AccessTokenTransactionOperation,
-                                                                userRepository: UserRepository) throws -> EventLoopFuture<User?> where RefreshTokenTransactionOperation.T == RefreshToken, AccessTokenTransactionOperation.T == AccessToken, UserRepository.T == User {
-        do {
-            let token = try transactionProcess.addOperation(to: refreshTokenRepository) { (repo) -> EventLoopFuture<RefreshToken?> in
-                return try repo.queryFirstOperation(\.value, refreshToken)
-            }
-            .thenThrowing{ (token) -> (RefreshToken) in
+    //MARK: -Token
+    func checkToken(conn: DatabaseConnectable,
+                    accessToken: String) -> EventLoopFuture<AccessToken> {
+        return AccessToken.query(on: conn)
+            .filter(\.value == accessToken)
+            .first()
+            .map { (token) -> AccessToken in
                 guard let validToken = token else {
-                    throw AuthError.refreshTokenNotFinded(token: refreshToken)
+                    throw AuthError.accessTokenNotFinded(token: accessToken)
                 }
-                return validToken
-            }.wait()
-            
-            let deletedRefreshToken = try transactionProcess.addOperation(to: refreshTokenRepository) { (repo) -> EventLoopFuture<RefreshToken> in
-                return try repo.deleteOperation(token).map({ (_) -> (RefreshToken) in
-                    return token
-                })
-            }.wait()
-            
-            let accessToken = try transactionProcess.addOperation(to: accessTokenRepository, { (repo) -> EventLoopFuture<AccessToken?> in
-                return try accessTokenRepository.queryFirstOperation(\.user_id, deletedRefreshToken.user_id)
-            })
-                .map({ (token) -> (AccessToken) in
-                    guard let validToken = token else {
-                        throw AuthError.accessTokenNotFinded(token: nil)
-                    }
+                if validToken.expired_in < Date() {
                     return validToken
-                }).wait()
-            
-            try transactionProcess.addOperation(to: accessTokenRepository, { (repo) -> EventLoopFuture<Void> in
-                return try repo.deleteOperation(accessToken)
-                }).wait()
-            
-            return try userRepository.findOperation(accessToken.user_id)
-        } catch {
-            throw error
+                } else {
+                    throw AuthError.accessTokenExpiredIn(token: validToken.value,
+                                                         expiredDate: validToken.expired_in)
+                }
+            }
+    }
+    
+    func refreshToken(userId: Int,
+                      conn: DatabaseConnectable,
+                      refreshToken: String) throws -> EventLoopFuture<(RefreshToken, AccessToken)> {
+        return conn.transact { (conn) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+            self.deleteOldTokens(on: conn, userId: userId)
+                .flatMap { (_) -> EventLoopFuture<User?> in
+                    return User.find(userId, on: conn)
+                }
+                .flatMap { (user) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                    guard let validUser = user else {
+                        throw AuthError.userNotFound
+                    }
+                    return self.createNewTokens(on: conn, user: validUser)
+                }
         }
     }
     
-    private func createNewTokens<RefreshTokenTransactionOperation: TransactionOperation, AccessTokenTransactionOperation: TransactionOperation>(user: User,
-        transactionProcess: TransactionProcess,
-                                 refreshTokenRepository: RefreshTokenTransactionOperation,
-                                 accessTokenRepository: AccessTokenTransactionOperation) throws -> EventLoopFuture<(RefreshToken, AccessToken)> where RefreshTokenTransactionOperation.T == RefreshToken, AccessTokenTransactionOperation.T == AccessToken  {
+    private func deleteOldTokens(on conn: DatabaseConnectable,
+                                 userId: Int) -> Future<Void> {
+            RefreshToken.query(on: conn)
+                .filter(\.user_id == userId)
+                .first()
+                .thenThrowing({ (refreshToken) -> Void in
+                    do {
+                        if let deleting = refreshToken?.delete(on: conn) {
+                            return try deleting.wait()
+                        } else {
+                            
+                        }
+                    } catch {
+                        throw error
+                    }
+                })
+                .flatMap({ (_) -> EventLoopFuture<AccessToken?> in
+                    return AccessToken.query(on: conn)
+                        .filter(\.user_id == userId)
+                        .first()
+                })
+                .thenThrowing { (accessToken) -> Void in
+                    do {
+                        if let deleting = accessToken?.delete(on: conn) {
+                            return try deleting.wait()
+                        } else {
+                            throw AuthError.accessTokenNotFinded(token: nil)
+                        }
+                    } catch {
+                        throw error
+                    }
+                }
+    }
+            
+    private func createNewTokens(on conn: DatabaseConnectable,
+                                 user: User) -> Future<(RefreshToken, AccessToken)> {
+        guard let userId = user.id else {
+            return .fail(eventLoop: conn.eventLoop, error: AuthError.notFoundUserId)
+        }
         do {
-            let refreshTokenOperation = try transactionProcess.addOperation(to: refreshTokenRepository) { (refreshTokenRepo) -> EventLoopFuture<RefreshToken> in
-                guard let userId = user.id else {
-                    throw AuthError.notFoundUserId
-                }
-                let userJWT = UserJWT(id: userId,
-                                         name: user.name)
-                let data = try JWT(payload: userJWT).sign(using: .hs256(key: "secret"))
-                let value = String(data: data, encoding: .utf8) ?? ""
-                let refreshToken = RefreshToken(value: value,
-                                                user_id: userId,
-                                                expired_in: Date().addDays(30)!)
-                return try refreshTokenRepo.createOperation(refreshToken)
-            }
-            let accessTokenOperation = try transactionProcess.addOperation(to: accessTokenRepository) { (accessTokenRepo) -> EventLoopFuture<AccessToken> in
-                guard let userId = user.id else {
-                    throw AuthError.notFoundUserId
-                }
-                let userJWT = UserJWT(id: userId,
-                                      name: user.name)
-                let data = try JWT(payload: userJWT).sign(using: .hs256(key: "secret"))
-                let value = String(data: data, encoding: .utf8) ?? ""
-                let token = AccessToken(value: value,
-                                        user_id: userId,
-                                        expired_in: Date().addDays(15)!)
-                return try accessTokenRepo.createOperation(token)
-            }
-            return try refreshTokenOperation.and(accessTokenOperation)
+            let userJWT = UserJWT(id: userId, name: user.name)
+            let refreshToken: RefreshToken = try createToken(userJWT: userJWT, days: 30)
+            let accessToken: AccessToken = try createToken(userJWT: userJWT, days: 15)
+            return .success(eventLoop: conn.eventLoop, result: (refreshToken, accessToken))
+        } catch {
+            return .fail(eventLoop: conn.eventLoop, error: error)
+        }
+    }
+    
+    private func createToken<T: Token>(userJWT: UserJWT, days: Int) throws -> T {
+        do {
+            let data = try JWT(payload: userJWT).sign(using: .hs256(key: "secret"))
+            let value = String(data: data, encoding: .utf8) ?? ""
+            return T.init(id: nil, value: value, user_id: userJWT.id, expired_in: Date().addDays(days)!)
+        } catch {
+            throw error
         }
     }
 }

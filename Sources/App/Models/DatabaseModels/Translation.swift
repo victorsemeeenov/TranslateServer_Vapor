@@ -12,10 +12,9 @@ struct Translation: PostgreSQLModel {
     var id: Int?
     var word_id: Int
     var translation: String
-}
-
-extension Translation {
+    
     var word: Parent<Translation, Word> {
         return parent(\.word_id)
     }
 }
+

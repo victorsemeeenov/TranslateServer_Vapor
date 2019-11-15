@@ -12,6 +12,8 @@ protocol Token: PostgreSQLModel, Equatable {
     var value: String {get set}
     var user_id: Int {get set}
     var expired_in: Date {get set}
+    
+    init(id: Int?, value: String, user_id: Int, expired_in: Date)
 }
 
 //MARK: Equatable

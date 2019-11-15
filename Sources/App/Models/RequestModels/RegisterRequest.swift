@@ -7,7 +7,7 @@
 
 import Vapor
 
-struct RegisterRequest: Content {
+struct RegisterUserRequest: Content {
     let username: String
     let email: String
     let password: String

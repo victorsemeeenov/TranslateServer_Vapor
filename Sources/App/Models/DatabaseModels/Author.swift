@@ -10,9 +10,7 @@ import FluentPostgreSQL
 struct Author: PostgreSQLModel {
     var id: Int?
     var name: String
-}
-
-extension Author {
+    
     var book: Siblings<Author, Book, BookAuthor> {
         return siblings()
     }

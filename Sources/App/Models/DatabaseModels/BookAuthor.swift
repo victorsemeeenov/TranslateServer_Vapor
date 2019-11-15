@@ -7,13 +7,16 @@
 
 import FluentPostgreSQL
 
-struct BookAuthor {
+struct BookAuthor: Pivot {
+    typealias Left = Book
+    typealias Right = Author
+    typealias Database = PostgreSQLDatabase
+    typealias ID = Int
+    
     var id: Int?
     var book_id: Int
     var author_id: Int
-}
-
-extension BookAuthor: Pivot {
+    
     static var leftIDKey: WritableKeyPath<BookAuthor, Int> {
         return \.book_id
     }
@@ -25,14 +28,4 @@ extension BookAuthor: Pivot {
     static var idKey: WritableKeyPath<BookAuthor, Int?> {
         return \.id
     }
-    
-    typealias Left = Book
-    
-    typealias Right = Author
-    
-    typealias Database = PostgreSQLDatabase
-    
-    typealias ID = Int
-    
-    
 }

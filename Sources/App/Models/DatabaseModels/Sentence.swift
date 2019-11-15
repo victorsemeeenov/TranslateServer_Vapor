@@ -13,9 +13,7 @@ struct Sentence: PostgreSQLModel {
     var value: String
     var index: Int
     var chapter_id: Int
-}
-
-extension Sentence {
+    
     var chapter: Parent<Sentence, Chapter> {
         return parent(\.chapter_id)
     }
