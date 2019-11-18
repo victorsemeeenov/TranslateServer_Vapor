@@ -18,3 +18,5 @@ struct Translation: PostgreSQLModel {
     }
 }
 
+extension Translation: Migration {}
+

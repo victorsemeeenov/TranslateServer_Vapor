@@ -4,11 +4,11 @@ drop table if exists users CASCADE;
 drop table if exists words CASCADE;
 drop table if exists translations CASCADE;
 drop table if exists sentences CASCADE;
-drop table if exists word_sentences CASCADE;
+drop table if exists words_sentences CASCADE;
 drop table if exists chapters CASCADE;
 drop table if exists books CASCADE;
 drop table if exists authors CASCADE;
-drop table if exists books_and_authors CASCADE;
+drop table if exists books_authors CASCADE;
 
 create table users (
     id         serial primary key,
@@ -32,7 +32,7 @@ create table refresh_tokens (
     user_id    integer references users(id),
     created_at timestamp not null,
     expired_in timestamp not null
-)
+);
 
 create table words (
     id    serial primary key,

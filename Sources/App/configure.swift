@@ -21,7 +21,8 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     services.register(fileLogger)
 
     // Auth
-    try services.register(AuthenticationProvider())
+    services.register(AuthService.self)
+    
     
     // Register middleware
     var middlewares = MiddlewareConfig() // Create _empty_ middleware config
@@ -32,14 +33,15 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     // Configure a PostgreeSql
     if let database = getDatabase() {
         var databases = DatabasesConfig()
+        databases.enableLogging(on: .psql)
         databases.add(database: database, as: .psql)
         services.register(databases)
     }
     
     // Configure migrations
-    var migrations = MigrationConfig()
-    migrations.add(model: Todo.self, database: .psql)
-    services.register(migrations)
+    var migrationsConfig = MigrationConfig()
+    addMigrations(to: &migrationsConfig)
+    services.register(migrationsConfig)
 }
 
 private func getDatabase() -> PostgreSQLDatabase? {
@@ -50,4 +52,18 @@ private func getDatabase() -> PostgreSQLDatabase? {
         PrintLogger().log(.error(error), file: #file, function: #function, line: #line, column: #column)
         return nil
     }
+}
+
+private func addMigrations(to config: inout MigrationConfig) {
+    config.add(model: Author.self, database: .psql)
+    config.add(model: Book.self, database: .psql)
+    config.add(model: BookAuthor.self, database: .psql)
+    config.add(model: Chapter.self, database: .psql)
+    config.add(model: Sentence.self, database: .psql)
+    config.add(model: AccessToken.self, database: .psql)
+    config.add(model: RefreshToken.self, database: .psql)
+    config.add(model: Translation.self, database: .psql)
+    config.add(model: User.self, database: .psql)
+    config.add(model: Word.self, database: .psql)
+    config.add(model: WordSentence.self, database: .psql)
 }

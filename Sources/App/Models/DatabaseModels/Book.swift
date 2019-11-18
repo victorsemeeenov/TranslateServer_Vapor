@@ -17,3 +17,5 @@ struct Book: PostgreSQLModel {
         return siblings()
     }
 }
+
+extension Book: Migration {}

@@ -15,3 +15,5 @@ struct Author: PostgreSQLModel {
         return siblings()
     }
 }
+
+extension Author: Migration {}

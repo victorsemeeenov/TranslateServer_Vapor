@@ -32,3 +32,5 @@ struct  WordSentence: Pivot {
     }
 }
 
+extension WordSentence: Migration {}
+

@@ -19,3 +19,5 @@ struct Chapter: PostgreSQLModel {
         return parent(\.book_id)
     }
 }
+
+extension Chapter: Migration {}

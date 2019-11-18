@@ -6,6 +6,7 @@
 //
 
 import FluentPostgreSQL
+import JWT
 
 protocol Token: PostgreSQLModel, Equatable {
     var id: Int? {get set}
@@ -14,6 +15,15 @@ protocol Token: PostgreSQLModel, Equatable {
     var expired_in: Date {get set}
     
     init(id: Int?, value: String, user_id: Int, expired_in: Date)
+}
+
+extension Token {
+    static func generate(user: User, days: Int) throws -> Self {
+        let userJWT = UserJWT(id: user.id!, name: user.name)
+        let data = try JWT(payload: userJWT).sign(using: .hs256(key: "secret"))
+        let value = String(data: data, encoding: .utf8) ?? ""
+        return .init(id: nil, value: value, user_id: userJWT.id, expired_in: Date().addDays(days)!)
+    }
 }
 
 //MARK: Equatable
@@ -47,6 +57,8 @@ struct AccessToken: Token {
     }
 }
 
+extension AccessToken: Migration {}
+
 struct RefreshToken: Token {
     static var name: String = "refresh_token"
     var id: Int?
@@ -64,3 +76,5 @@ struct RefreshToken: Token {
         self.expired_in = expired_in
     }
 }
+
+extension RefreshToken: Migration {}

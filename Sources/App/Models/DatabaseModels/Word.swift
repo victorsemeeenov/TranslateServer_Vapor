@@ -16,3 +16,5 @@ struct Word: PostgreSQLModel {
         return siblings()
     }
 }
+
+extension Word: Migration {}

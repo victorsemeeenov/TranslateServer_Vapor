@@ -18,3 +18,5 @@ struct Sentence: PostgreSQLModel {
         return parent(\.chapter_id)
     }
 }
+
+extension Sentence: Migration {}

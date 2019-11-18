@@ -31,9 +31,19 @@ struct User: PostgreSQLModel {
     }
 }
 
+extension User: Migration {}
+
 struct UserJWT: JWTPayload {
     var id: Int
     var name: String
+    var date: Date
+    
+    init(id: Int,
+         name: String) {
+        self.id = id
+        self.name = name
+        self.date = Date()
+    }
     
     func verify(using signer: JWTSigner) throws {}
 }

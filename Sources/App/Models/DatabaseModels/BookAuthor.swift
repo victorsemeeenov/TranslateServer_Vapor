@@ -29,3 +29,5 @@ struct BookAuthor: Pivot {
         return \.id
     }
 }
+
+extension BookAuthor: Migration {}

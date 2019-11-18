@@ -8,27 +8,49 @@
 import Vapor
 import Crypto
 import FluentPostgreSQL
-import JWT
 
-class AuthService: Service {
+final class AuthService: Auth {
     //MARK: -Auth
     func registerUser(conn: DatabaseConnectable,
                       user: RegisterUserRequest) -> EventLoopFuture<(RefreshToken, AccessToken)> {
         do {
             let password = try SHA1.hash(user.password)
             let newUser = User(name: user.username, email: user.email, passwordHash: password.hexEncodedString())
-            if let _ = try User.query(on: conn).filter(\.name == newUser.name).first().wait() {
-                throw AuthError.userExistWithName(name: newUser.name)
-            }
-            if let _ = try User.query(on: conn).filter(\.email == newUser.email).first().wait() {
-                throw AuthError.userExistWithEmail(email: newUser.email)
-            }
-            return conn.transact { (conn) -> EventLoopFuture<(RefreshToken, AccessToken)> in
-                newUser.create(on: conn)
-                    .then { (user) -> EventLoopFuture<(RefreshToken, AccessToken)> in
-                        return self.createNewTokens(on: conn,
-                                                    user: user)
-                }
+            return User.query(on: conn)
+                .filter(\.name == newUser.name)
+                .first()
+                .map({ (user) -> (Void) in
+                    if let _ = user {
+                        throw AuthError.userExistWithName(name: newUser.name)
+                    } else {
+                        return
+                    }
+                })
+                .flatMap({ (_) -> EventLoopFuture<User?> in
+                    return User.query(on: conn)
+                        .filter(\.email == newUser.email)
+                    .first()
+                })
+                .map({ (user) -> (Void) in
+                    if let _ = user {
+                        throw AuthError.userExistWithEmail(email: newUser.email)
+                    } else {
+                        return
+                    }
+                })
+                .flatMap({ (_) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                    return conn.transact { (conn) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                        newUser.create(on: conn)
+                            .then { (user) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                                return self.createNewTokens(on: conn,
+                                                            user: user)
+
+                        }
+                    }
+                })
+                .flatMap { (refreshToken, accessToken) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                    return refreshToken.create(on: conn)
+                        .and(accessToken.create(on: conn))
             }
         } catch {
             return .fail(eventLoop: conn.eventLoop, error: error)
@@ -39,7 +61,7 @@ class AuthService: Service {
                    user: LoginUserRequest) -> EventLoopFuture<(RefreshToken, AccessToken)> {
         do {
             let password = try SHA1.hash(user.password)
-            let user = try User.query(on: conn).filter(\.name == user.username)
+            let user = User.query(on: conn).filter(\.name == user.username)
                 .filter(\.passwordHash == password.hexEncodedString())
                 .first()
                 .map({(user) -> User in
@@ -48,19 +70,29 @@ class AuthService: Service {
                     }
                     return validUser
                 })
-                .wait()
-            
-            return try user.refreshTokens
-            .query(on: conn)
-            .first()
-            .flatMap({ (refreshToken) -> EventLoopFuture<(RefreshToken, AccessToken)> in
-                guard let validToken = refreshToken else {
-                    throw AuthError.refreshTokenNotFinded(token: nil)
-                }
-                return try self.refreshToken(userId: user.id!,
-                                         conn: conn,
-                                         refreshToken: validToken.value)
+            let refrehToken = user.flatMap({ (user) -> EventLoopFuture<RefreshToken?> in
+                return try user.refreshTokens
+                .query(on: conn)
+                .first()
             })
+                .map({ (refreshToken) -> (RefreshToken) in
+                    guard let validToken = refreshToken else {
+                        throw AuthError.refreshTokenNotFinded(token: nil)
+                    }
+                    return validToken
+                })
+            return user.and(refrehToken)
+                .flatMap({ (arg) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                    
+                    let (user, refreshToken) = arg
+                    return self.refreshToken(userId: user.id!,
+                                             conn: conn,
+                                             refreshToken: refreshToken.value)
+                })
+                .flatMap { (refreshToken, accessToken) -> EventLoopFuture<(RefreshToken, AccessToken)> in
+                    return refreshToken.create(on: conn)
+                        .and(accessToken.create(on: conn))
+            }
         } catch {
             return .fail(eventLoop: conn.eventLoop, error: error)
         }
@@ -81,6 +113,7 @@ class AuthService: Service {
                 }
             }
     }
+    
     //MARK: -Token
     func checkToken(conn: DatabaseConnectable,
                     accessToken: String) -> EventLoopFuture<AccessToken> {
@@ -102,7 +135,7 @@ class AuthService: Service {
     
     func refreshToken(userId: Int,
                       conn: DatabaseConnectable,
-                      refreshToken: String) throws -> EventLoopFuture<(RefreshToken, AccessToken)> {
+                      refreshToken: String) -> EventLoopFuture<(RefreshToken, AccessToken)> {
         return conn.transact { (conn) -> EventLoopFuture<(RefreshToken, AccessToken)> in
             self.deleteOldTokens(on: conn, userId: userId)
                 .flatMap { (_) -> EventLoopFuture<User?> in
@@ -122,57 +155,59 @@ class AuthService: Service {
             RefreshToken.query(on: conn)
                 .filter(\.user_id == userId)
                 .first()
-                .thenThrowing({ (refreshToken) -> Void in
-                    do {
-                        if let deleting = refreshToken?.delete(on: conn) {
-                            return try deleting.wait()
-                        } else {
-                            
-                        }
-                    } catch {
-                        throw error
+                .map({ (refreshToken) -> (RefreshToken) in
+                    if let token = refreshToken {
+                        return token
+                    } else {
+                        throw AuthError.refreshTokenNotFinded(token: nil)
                     }
+                })
+                .flatMap({ (refreshToken) -> EventLoopFuture<Void> in
+                    return refreshToken.delete(on: conn)
                 })
                 .flatMap({ (_) -> EventLoopFuture<AccessToken?> in
                     return AccessToken.query(on: conn)
                         .filter(\.user_id == userId)
                         .first()
                 })
-                .thenThrowing { (accessToken) -> Void in
-                    do {
-                        if let deleting = accessToken?.delete(on: conn) {
-                            return try deleting.wait()
-                        } else {
-                            throw AuthError.accessTokenNotFinded(token: nil)
-                        }
-                    } catch {
-                        throw error
+                .map({ (accessToken) -> (AccessToken) in
+                    if let token = accessToken {
+                        return token
+                    } else {
+                        throw AuthError.refreshTokenNotFinded(token: nil)
                     }
-                }
+                })
+                .flatMap({ (accessToken) -> EventLoopFuture<Void> in
+                    return accessToken.delete(on: conn)
+                })
     }
             
     private func createNewTokens(on conn: DatabaseConnectable,
                                  user: User) -> Future<(RefreshToken, AccessToken)> {
-        guard let userId = user.id else {
-            return .fail(eventLoop: conn.eventLoop, error: AuthError.notFoundUserId)
-        }
         do {
-            let userJWT = UserJWT(id: userId, name: user.name)
-            let refreshToken: RefreshToken = try createToken(userJWT: userJWT, days: 30)
-            let accessToken: AccessToken = try createToken(userJWT: userJWT, days: 15)
+            let refreshToken: RefreshToken = try createToken(user: user, days: 30)
+            let accessToken: AccessToken = try createToken(user: user, days: 15)
             return .success(eventLoop: conn.eventLoop, result: (refreshToken, accessToken))
         } catch {
             return .fail(eventLoop: conn.eventLoop, error: error)
         }
     }
     
-    private func createToken<T: Token>(userJWT: UserJWT, days: Int) throws -> T {
+    private func createToken<T: Token>(user: User, days: Int) throws -> T {
         do {
-            let data = try JWT(payload: userJWT).sign(using: .hs256(key: "secret"))
-            let value = String(data: data, encoding: .utf8) ?? ""
-            return T.init(id: nil, value: value, user_id: userJWT.id, expired_in: Date().addDays(days)!)
+            return try T.generate(user: user, days: days)
         } catch {
             throw error
         }
+    }
+}
+
+extension AuthService {
+    static var serviceSupports: [Any.Type] {
+        return [Auth.self]
+    }
+    
+    static func makeService(for container: Container) throws -> Self {
+        return .init()
     }
 }
