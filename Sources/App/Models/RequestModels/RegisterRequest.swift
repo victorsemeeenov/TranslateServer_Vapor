@@ -7,7 +7,7 @@
 
 import Vapor
 
-struct RegisterUserRequest: Content {
+struct RegisterUserRequest: Decodable {
     let username: String
     let email: String
     let password: String
