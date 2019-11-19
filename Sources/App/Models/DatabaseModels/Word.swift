@@ -15,6 +15,10 @@ struct Word: PostgreSQLModel {
     var sentences: Siblings<Word, Sentence, WordSentence> {
         return siblings()
     }
+    
+    var wordTranslation: Children<Word, WordTranslation> {
+        return children(\.word_id)
+    }
 }
 
 extension Word: Migration {}

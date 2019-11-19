@@ -62,7 +62,7 @@ private func addMigrations(to config: inout MigrationConfig) {
     config.add(model: Sentence.self, database: .psql)
     config.add(model: AccessToken.self, database: .psql)
     config.add(model: RefreshToken.self, database: .psql)
-    config.add(model: Translation.self, database: .psql)
+    config.add(model: WordTranslation.self, database: .psql)
     config.add(model: User.self, database: .psql)
     config.add(model: Word.self, database: .psql)
     config.add(model: WordSentence.self, database: .psql)

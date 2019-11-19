@@ -9,6 +9,10 @@ drop table if exists chapters CASCADE;
 drop table if exists books CASCADE;
 drop table if exists authors CASCADE;
 drop table if exists books_authors CASCADE;
+drop table if exists languages CASCADE;
+drop table if exists words_translations CASCADE;
+drop table if exists translations CASCASE;
+drop table if exists sentence_translations CASCADE;
 
 create table users (
     id         serial primary key,
@@ -39,10 +43,21 @@ create table words (
     value varchar(255)
 );
 
+create table languages (
+    id    serial primary key,
+    value varchar(64)
+);
+
+create table words_translations (
+    id                  serial primary key,
+    word_id             integer references words(id),
+    language_id         integer references languages(id),
+    word_translation_id integer references word_translations(id)
+);
+
 create table translations (
-    id          serial primary key,
-    word_id     integer references words(id),
-    translation varchar (255)
+    id    serial primary key,
+    value varchar(255)
 );
 
 create table books (
@@ -68,10 +83,17 @@ create table sentences (
 );
 
 create table words_sentences (
-    id           serial primary key,
-    word_id      integer references words(id),
+    id          serial primary key,
+    word_id     integer references words(id),
     sentence_id integer references sentences(id),
-    index        integer
+    index       integer
+);
+
+create table sentence_translations (
+    id          serial primary key,
+    sentence_id integer references sentences(id),
+    language_id integer references languages(id),
+    value       varchar(255)
 );
 
 create table authors (
