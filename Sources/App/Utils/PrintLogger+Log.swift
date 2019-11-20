@@ -6,12 +6,13 @@
 //
 
 import Foundation
+import Vapor
 import Logging
 
 extension PrintLogger {
     enum LogType {
         case error(Error)
-        case warning(String)
+        case warning(Debuggable)
         case message(String)
     }
     
@@ -22,7 +23,7 @@ extension PrintLogger {
         case .message(let message):
             self.log(message, at: .info, file: file, function: function, line: line, column: column)
         case .warning(let warning):
-            self.log(warning, at: .warning, file: file, function: function, line: line, column: column)
+            self.log(warning.reason, at: .warning, file: file, function: function, line: line, column: column)
         }
     }
 }

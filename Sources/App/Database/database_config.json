@@ -1,7 +1,0 @@
-{
-    "username": "victor",
-    "database": "booktranslate",
-    "password": null,
-    "hostname": "localhost",
-    "port": 5432
-}

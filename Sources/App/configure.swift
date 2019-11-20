@@ -23,7 +23,6 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     // Auth
     services.register(AuthService.self)
     
-    
     // Register middleware
     var middlewares = MiddlewareConfig() // Create _empty_ middleware config
     // middlewares.use(FileMiddleware.self) // Serves files from `Public/` directory

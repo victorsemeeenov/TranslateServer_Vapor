@@ -9,6 +9,7 @@ xcuserdata/
 *.xcscmblueprint
 *.xccheckout
 database_config.json
+api_key.json
 
 ## compatibility with Xcode 3 and earlier (ignoring not required starting Xcode 4)
 build/
