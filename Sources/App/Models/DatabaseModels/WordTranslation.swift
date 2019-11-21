@@ -8,22 +8,32 @@
 import FluentPostgreSQL
 import Vapor
 
-struct WordTranslation: PostgreSQLModel {
+struct WordTranslation: Pivot {
+    typealias Database = PostgreSQLDatabase
+    typealias ID = Int
+    typealias Left = Word
+    typealias Right = Translation
+    
     var id: Int?
     var word_id: Int
-    var language_id: Int
     var translation_id: Int
     
-    var word: Parent<WordTranslation, Word> {
-        return parent(\.word_id)
+    init(wordId: Int,
+         translationId: Int) {
+        self.word_id = wordId
+        self.translation_id = translationId
     }
     
-    var language: Parent<WordTranslation, Language> {
-        return parent(\.language_id)
+    static var leftIDKey: WritableKeyPath<WordTranslation, Int> {
+        return \.word_id
     }
     
-    var translation: Parent<WordTranslation, Translation> {
-        return parent(\.translation_id)
+    static var rightIDKey: WritableKeyPath<WordTranslation, Int> {
+        return \.translation_id
+    }
+    
+    static var idKey: WritableKeyPath<WordTranslation, Int?> {
+        return \.id
     }
 }
 

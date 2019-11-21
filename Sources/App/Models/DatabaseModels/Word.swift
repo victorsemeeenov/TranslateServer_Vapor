@@ -11,13 +11,26 @@ import FluentPostgreSQL
 struct Word: PostgreSQLModel {
     var id: Int?
     var value: String
+    var transcription: String
+    var part_of_speech: String
+    var language_id: Int
     
-    var sentences: Siblings<Word, Sentence, WordSentence> {
+    var language: Parent<Word, Language> {
+        return parent(\.language_id)
+    }
+    
+    var translation: Siblings<Word, Translation, WordTranslation> {
         return siblings()
     }
     
-    var wordTranslation: Children<Word, WordTranslation> {
-        return children(\.word_id)
+    init(value: String,
+        transcription: String,
+        partOfSpeech: String,
+        languageId: Int) {
+        self.value = value
+        self.transcription = transcription
+        self.part_of_speech = partOfSpeech
+        self.language_id = languageId
     }
 }
 

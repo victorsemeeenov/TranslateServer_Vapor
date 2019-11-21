@@ -12,14 +12,21 @@ struct Language: PostgreSQLModel {
         case en_ru
         case fr_ru
         case de_ru
+        
+        var id: Int {
+            switch self {
+            case .en_ru:
+                return 0
+            case .fr_ru:
+                return 1
+            case .de_ru:
+                return 2
+            }
+        }
     }
     
     var id: Int?
     var value: String
-    
-    var wordTranslation: Children<Language, WordTranslation> {
-        return children(\.language_id)
-    }
     
     var language: LanguageType? {
         return LanguageType(rawValue: value)

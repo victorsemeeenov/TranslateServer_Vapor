@@ -9,15 +9,19 @@ import Foundation
 import SwiftyJSON
 
 protocol JSONDecodable {
-    init(from json: JSON)
+    init(from json: JSON) throws
 }
 
 extension Array: JSONDecodable where Element: JSONDecodable {
-    init(from json: JSON) {
+    init(from json: JSON) throws {
         self = []
         guard let array = json.array else {return}
-        for json in array {
-            self.append(Element.init(from: json))
+        do {
+            for json in array {
+                self.append(try Element.init(from: json))
+            }
+        } catch {
+            throw error
         }
     }
 }

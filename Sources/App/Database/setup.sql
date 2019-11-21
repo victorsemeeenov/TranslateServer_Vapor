@@ -38,26 +38,42 @@ create table refresh_tokens (
     expired_in timestamp not null
 );
 
-create table words (
-    id    serial primary key,
-    value varchar(255)
-);
-
 create table languages (
     id    serial primary key,
     value varchar(64)
 );
 
-create table words_translations (
-    id                  serial primary key,
-    word_id             integer references words(id),
-    language_id         integer references languages(id),
-    word_translation_id integer references words_translations(id)
+create table words (
+    id             serial primary key,
+    value          varchar(255),
+    transcription  varchar(255),
+    part_of_speech varchar(255),
+    language_id    integer references languages(id)
 );
 
+create table synonims (
+    id      serial primary key,
+    value   varchar(255)
+);
+
+create table words_translations (
+    id             serial primary key,
+    word_id        integer references words(id),
+    translation_id integer references translations(id)
+);
+
+
 create table translations (
-    id    serial primary key,
-    value varchar(255)
+    id             serial primary key,
+    value          varchar(255),
+    part_of_speech varchr(255),
+    gender         varchar(64)
+);
+
+create table translations_synonims (
+    id             serial primary key,
+    translation_id integer references words(id),
+    synonym_id     integer references synonims(id)
 );
 
 create table book_categories (
@@ -84,10 +100,11 @@ create table chapters (
 );
 
 create table sentences (
-    id         serial primary key,
-    value      text,
-    index      integer,
-    chapter_id integer references chapters(id)
+    id          serial primary key,
+    value       text,
+    index       integer,
+    chapter_id  integer references chapters(id),
+    language_id integer references languages(id)
 );
 
 create table words_sentences (
@@ -105,7 +122,7 @@ create table sentence_translations (
 );
 
 create table authors (
-    id           serial primary key,
+    id   serial primary key,
     name varchar (255)
 );
 

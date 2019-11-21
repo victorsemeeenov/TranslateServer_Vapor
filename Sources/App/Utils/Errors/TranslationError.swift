@@ -10,6 +10,9 @@ import Vapor
 enum TranslationError: Debuggable {
     case cantFindWordTranslationInDB
     case cantFindWordInDB
+    case nilValueForSynonim
+    case cantFindSentenceInDb
+    case cantFindSentenceTranlsationinDB
     
     var identifier: String {
         return "Error"
@@ -21,6 +24,12 @@ enum TranslationError: Debuggable {
             return "Невозможно найти перевод слова в БД"
         case .cantFindWordInDB:
             return "Невозможно найти слово в БД"
+        case .nilValueForSynonim:
+            return "Синоним не имеет значения"
+        case .cantFindSentenceInDb:
+            return "Невозможно найти предложение в БД"
+        case .cantFindSentenceTranlsationinDB:
+            return "Невозможно найти перевод предложения в БД"
         }
     }
 }
