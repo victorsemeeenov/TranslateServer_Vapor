@@ -13,6 +13,8 @@ enum TranslationError: Debuggable {
     case nilValueForSynonim
     case cantFindSentenceInDb
     case cantFindSentenceTranlsationinDB
+    case cantFindBook
+    case cantFindChapter
     
     var identifier: String {
         return "Error"
@@ -30,6 +32,10 @@ enum TranslationError: Debuggable {
             return "Невозможно найти предложение в БД"
         case .cantFindSentenceTranlsationinDB:
             return "Невозможно найти перевод предложения в БД"
+        case .cantFindBook:
+            return "Невозможно найти книгу с данным id"
+        case .cantFindChapter:
+            return "Невозможно найти "
         }
     }
 }

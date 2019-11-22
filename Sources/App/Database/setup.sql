@@ -13,6 +13,9 @@ drop table if exists languages CASCADE;
 drop table if exists words_translations CASCADE;
 drop table if exists translations CASCADE;
 drop table if exists sentence_translations CASCADE;
+drop index if exists sentence_index;
+drop index if exists chapter_index;
+drop index if exists word_index;
 
 create table users (
     id         serial primary key,
@@ -50,6 +53,8 @@ create table words (
     part_of_speech varchar(255),
     language_id    integer references languages(id)
 );
+
+create index word_index in words((lower(value)));
 
 create table synonims (
     id      serial primary key,
@@ -99,6 +104,8 @@ create table chapters (
     book_id     integer references books(id)
 );
 
+create index chapter_index in chapters(index);
+
 create table sentences (
     id          serial primary key,
     value       text,
@@ -106,6 +113,8 @@ create table sentences (
     chapter_id  integer references chapters(id),
     language_id integer references languages(id)
 );
+
+create index sentence_index in sentences(index);
 
 create table words_sentences (
     id          serial primary key,

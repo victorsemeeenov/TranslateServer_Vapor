@@ -16,10 +16,11 @@ let package = Package(
         .package(url: "https://github.com/vapor/auth.git", from: "2.0.0"),
         .package(url: "https://github.com/hallee/vapor-simple-file-logger.git", from: "1.0.1"),
         .package(url: "https://github.com/vapor/jwt.git", from: "3.0.0"),
-        .package(url: "https://github.com/Moya/Moya.git", from: "13.0.0")
+        .package(url: "https://github.com/Moya/Moya.git", from: "13.0.0"),
+        .package(url: "https://github.com/nodes-vapor/storage.git", from: "1.0.0-beta")
     ],
     targets: [
-        .target(name: "App", dependencies: ["FluentPostgreSQL", "Vapor", "SwiftyJSON", "Logging", "SimpleFileLogger", "Authentication", "JWT", "Moya"]),
+        .target(name: "App", dependencies: ["FluentPostgreSQL", "Vapor", "SwiftyJSON", "Logging", "SimpleFileLogger", "Authentication", "JWT", "Moya", "Storage"]),
         .target(name: "Run", dependencies: ["App"]),
         .testTarget(name: "AppTests", dependencies: ["App"])
     ]

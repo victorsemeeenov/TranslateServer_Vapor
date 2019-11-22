@@ -23,6 +23,10 @@ struct Word: PostgreSQLModel {
         return siblings()
     }
     
+    var sentences: Siblings<Word, Sentence, WordSentence> {
+        return siblings()
+    }
+    
     init(value: String,
         transcription: String,
         partOfSpeech: String,

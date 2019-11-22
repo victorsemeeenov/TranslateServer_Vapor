@@ -17,6 +17,18 @@ struct Sentence: PostgreSQLModel {
     var chapter: Parent<Sentence, Chapter> {
         return parent(\.chapter_id)
     }
+    
+    var words: Siblings<Sentence, Word, WordSentence> {
+        return siblings()
+    }
+    
+    init(value: String,
+         index: Int,
+         chapterId: Int) {
+        self.value = value
+        self.index = index
+        self.chapter_id = chapterId
+    }
 }
 
 extension Sentence: Migration {}

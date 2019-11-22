@@ -34,6 +34,7 @@ extension TranslationService {
                                          conn: DatabaseConnectable) -> Future<((Word, Translation), [Synonim])> {
         let wordQuery = Word.query(on: conn)
             .filter(\.value, .equal, word)
+            .filter(\.language_id, .equal, language.id)
             .first()
             .map { (dbWord) -> (Word) in
                 if let validWord = dbWord {
@@ -121,20 +122,59 @@ extension TranslationService {
 
 //MARK: -Translate sentence
 extension TranslationService {
-    func translate(text: String,
+    func translate(sentenceIndex: Int,
+                   chapterIndex: Int,
+                   bookId: Int,
                    language: Language.LanguageType?,
-                   conn: DatabaseConnectable) -> Future<(Sentence, SentenceTranslation)> {
-        return findSentenceTranslationInDB(sentence: text,
+                   conn: DatabaseConnectable) -> EventLoopFuture<(Sentence, SentenceTranslation)> {
+        return findSentenceTranslationInDB(sentenceIndex: sentenceIndex,
+                                           chapterIndex: chapterIndex,
+                                           bookId: bookId,
                                            language: language ?? .en_ru,
                                            conn: conn)
+            .mapIfError { (error) -> (Sentence, SentenceTranslation) in
+                PrintLogger().log(.error(error),
+                                  file: #file,
+                                  function: #function,
+                                  line: #line,
+                                  column: #column)
+                return
+        }
     }
     
-    private func findSentenceTranslationInDB(sentence: String,
-                                            language: Language.LanguageType,
-                                            conn: DatabaseConnectable) -> Future<(Sentence, SentenceTranslation)> {
-        let sentence = Sentence.query(on: conn)
-            .filter(\.value, .equal, sentence)
-            .first()
+    
+    
+    private func findSentenceTranslationInDB(sentenceIndex: Int,
+                                             chapterIndex: Int,
+                                             bookId: Int,
+                                             language: Language.LanguageType,
+                                             conn: DatabaseConnectable) -> Future<(Sentence, SentenceTranslation)> {
+        let sentence = Book.find(bookId, on: conn)
+            .map({ (book) -> (Book) in
+                if let validBook = book {
+                    return validBook
+                } else {
+                    throw TranslationError.cantFindBook
+                }
+            })
+            .flatMap({ (book) -> EventLoopFuture<Chapter?> in
+                return Chapter.query(on: conn)
+                    .filter(\.book_id, .equal, book.id!)
+                    .filter(\.index, .equal, chapterIndex)
+                    .first()
+            })
+            .map({ (chapter) -> (Chapter) in
+                if let validChapter = chapter {
+                    return validChapter
+                } else {
+                    throw TranslationError.cantFindChapter
+                }
+            })
+            .flatMap({ (chapter) -> EventLoopFuture<Sentence?> in
+                return Sentence.query(on: conn)
+                    .filter(\.chapter_id, .equal, chapter.id!)
+                    .first()
+            })
             .map { (sentence) -> (Sentence) in
                 if let validSentence = sentence {
                     return validSentence
@@ -155,5 +195,58 @@ extension TranslationService {
             }
         }
         return sentence.and(translation)
+    }
+        
+    
+    
+    private func getSentenceTranslation(with sentenceIndex: Int,
+                                        chapterId: Int,
+                                        language: Language.LanguageType,
+                                        conn: DatabaseConnectable) -> Future<(Sentence, [SentenceTranslation])> {
+        
+        return getSentenceTranslationRequest(sentence: <#T##String#>,
+                                             language: language,
+                                             sentenceIndex: sentenceIndex,
+                                             chapterId: chapterId,
+                                             conn: conn)
+    }
+    
+    private func getSentenceTranslationRequest(sentence: String,
+                                               language: Language.LanguageType,
+                                               sentenceIndex: Int,
+                                               chapterId: Int,
+                                               conn: DatabaseConnectable) -> Future<(Sentence, [SentenceTranslation])> {
+        return provider.request(.translateText(text: sentence, language: language.rawValue),
+                                eventLoop: conn.eventLoop)
+            .flatMap { (response) -> EventLoopFuture<(Sentence, [SentenceTranslation])> in
+                let sentenceCreate = Sentence(value: sentence,
+                                              index: sentenceIndex,
+                                              chapterId: chapterId)
+                    .create(on: conn)
+                return sentenceCreate
+                    .flatMap { (sentence) -> EventLoopFuture<(Sentence, [SentenceTranslation])> in
+                        return sentenceCreate
+                            .and(try self.getSentenceTranslation(responseData: response.data,
+                                                                 sentence: sentence,
+                                                                 conn: conn,
+                                                                 language: language))
+                }
+        }
+    }
+    
+    private func getSentenceTranslation(responseData: Data,
+                                         sentence: Sentence,
+                                         conn: DatabaseConnectable,
+                                         language: Language.LanguageType) throws -> Future<[SentenceTranslation]> {
+        let json = try JSON(data: responseData)
+        let response = try TranslateSentenceResponse(from: json)
+        var futures: [Future<SentenceTranslation>] = []
+        for translation in response.translations {
+            let translationCreate = SentenceTranslation(sentenceId: sentence.id!,
+                                                  languageId: language.id,
+                                                  value: translation).create(on: conn)
+            futures.append(translationCreate)
+        }
+        return futures.flatten(on: conn)
     }
 }
