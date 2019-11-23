@@ -61,18 +61,18 @@ create table synonims (
     value   varchar(255)
 );
 
-create table words_translations (
-    id             serial primary key,
-    word_id        integer references words(id),
-    translation_id integer references translations(id)
-);
-
 
 create table translations (
     id             serial primary key,
     value          varchar(255),
     part_of_speech varchr(255),
     gender         varchar(64)
+);
+
+create table words_translations (
+    id             serial primary key,
+    word_id        integer references words(id),
+    translation_id integer references translations(id)
 );
 
 create table translations_synonims (
